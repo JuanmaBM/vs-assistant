@@ -15,27 +15,31 @@
   "contributes": {
     "commands": [
       {
-        "command": "llm.generateCode",
-        "title": "Generate Code"
+        "command": "vs-assistant.generateCode",
+        "title": "VS-Assistant: Generate Code"
       },
       {
-        "command": "llm.modifyCode",
-        "title": "Modify Code"
+        "command": "vs-assistant.modifyCode",
+        "title": "VS-Assistant: Modify Code"
       }
     ],
     "configuration": {
     "type": "object",
-    "title": "LLM Configuration",
+    "title": "VS-Assistant Configuration",
       "properties": {
-          "llm.endpoint": {
+          "vs-assistant.endpoint": {
             "type": "string",
             "default": "http://localhost:11434/api/generate",
             "description": "The LLM endpoint URL"
           },
-          "llm.model": {
+          "vs-assistant.model": {
             "type": "string",
             "default": "llama3.2:3b-instruct-fp16",
             "description": "Name of the model to use"
+          },
+          "vs-assistant.apiKey": {
+            "type": "string",
+            "description": "API key of LLM"
           }
         }
       }
