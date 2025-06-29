@@ -1,0 +1,62 @@
+{
+  "name": "vs-assistant",
+  "displayName": "vs-assistant",
+  "type": "module",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "llm.generateCode",
+        "title": "Generate Code"
+      },
+      {
+        "command": "llm.modifyCode",
+        "title": "Modify Code"
+      }
+    ],
+    "configuration": {
+    "type": "object",
+    "title": "LLM Configuration",
+      "properties": {
+          "llm.endpoint": {
+            "type": "string",
+            "default": "http://localhost:11434/api/generate",
+            "description": "The LLM endpoint URL"
+          },
+          "llm.model": {
+            "type": "string",
+            "default": "llama3.2:3b-instruct-fp16",
+            "description": "Name of the model to use"
+          }
+        }
+      }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.101.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
