@@ -33,8 +33,8 @@ code --install-extension vs-assistant-0.0.1.vsix
 2. Select a block of code or leave your cursor where you want to insert code.
 3. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
 4. Run one of the commands:
-   - `LLM: Generate Code from Prompt`
-   - `LLM: Modify Selected Code`
+   - `VS-Assistant: Generate Code from Prompt`
+   - `VS-Assistant: Modify Selected Code`
 
 The model will respond and insert the generated code directly in your editor.
 
@@ -44,8 +44,8 @@ You can configure the endpoint and model in your VS Code settings:
 
 ```json
 {
-  "llm.endpoint": "http://localhost:11434/api/generate",
-  "llm.model": "llama3"
+  "vs-assistant.endpoint": "http://localhost:11434/api/generate",
+  "vs-assistant.model": "llama3"
 }
 ```
 
