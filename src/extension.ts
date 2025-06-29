@@ -1,8 +1,14 @@
 import * as vscode from 'vscode';
 
+const systemPrompt = `You are an expert developer. 
+  Return only the valid code for the following request. 
+  Do NOT include explanations or comments.
+  Return only the raw code.
+  Do not include any explanations, markdown formatting, or code fences like \`\`\`.`;
+
 export function activate(context: vscode.ExtensionContext) {
-  const generate = vscode.commands.registerCommand('llm.generateCode', generateCode);
-  const modify = vscode.commands.registerCommand('llm.modifyCode', modifyCode);
+  const generate = vscode.commands.registerCommand('vs-assistant.generateCode', generateCode);
+  const modify = vscode.commands.registerCommand('vs-assistant.modifyCode', modifyCode);
 
   context.subscriptions.push(generate, modify);
 }
@@ -22,19 +28,7 @@ async function generateCode() {
 
     if (!prompt) return;
 
-	const fullPrompt = `You are an expert developer. 
-	Return only the valid code for the following request. 
-	Do NOT include explanations or comments.
-	Return only the raw code.
-	Do not include any explanations, markdown formatting, or code fences like \`\`\`.
-
-	Request: ${prompt}`;
-
-    const config = vscode.workspace.getConfiguration('llm');
-    const endpoint = config.get<string>('endpoint')!;
-    const model = config.get<string>('model')!;
-
-    await callLLM(endpoint, model, fullPrompt, editor, selection);
+    await callLLM(prompt, editor, selection);
 }
 
 async function modifyCode() {
@@ -53,35 +47,40 @@ async function modifyCode() {
 
     if (!prompt) return;
 
-	const fullPrompt = `You are an expert developer. 
-	Return only the valid code for the following request. 
-	Do NOT include explanations or comments.
-	Return only the raw code.
-	Do not include any explanations, markdown formatting, or code fences like \`\`\`.
+    const fullPrompt = `
+      Code to modify: ${selectedText}
+      Request: ${prompt}`;
 
-	Code to modify: ${selectedText}
-	Request: ${prompt}`;
 
-    const config = vscode.workspace.getConfiguration('llm');
-    const endpoint = config.get<string>('endpoint')!;
-    const model = config.get<string>('model')!;
-
-    await callLLM(endpoint, model, fullPrompt, editor, selection, true);
+    await callLLM(fullPrompt, editor, selection, true);
 }
 
 async function callLLM(
-  endpoint: string,
-  model: string,
   prompt: string,
   editor: vscode.TextEditor,
   selection: vscode.Selection,
   replaceSelection: boolean = false
 ) {
   try {
+    const config = vscode.workspace.getConfiguration('llm');
+    const endpoint = config.get<string>('endpoint')!;
+    const model = config.get<string>('model')!;
+    const apiKey = config.get<string>('apiKey')!;
+
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: true }),
+      headers: {
+        'Content-Type': 'application/json'
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt},
+          { role: "user", content: prompt }
+        ],
+        stream: true
+      })
     });
 
     if (!res.body) {
@@ -91,15 +90,14 @@ async function callLLM(
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    let insertPosition = selection.start;
     let fullResponse = '';
 
-	if (replaceSelection) {
+    if (replaceSelection) {
       await editor.edit(editBuilder => {
         editBuilder.delete(selection);
       });
     }
-	
-    let insertPosition = selection.start;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -108,20 +106,24 @@ async function callLLM(
       const chunk = decoder.decode(value, { stream: true });
 
       for (const line of chunk.split('\n')) {
-        if (!line.trim()) continue;
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+        const payload = trimmed.replace(/^data:\s*/, '');
+        if (payload === '[DONE]') break;
+
         try {
-          const data = JSON.parse(line);
-          const text = data.response;
-          if (text) {
-            fullResponse += text;
+          const parsed = JSON.parse(payload);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullResponse += delta;
             await editor.edit(editBuilder => {
-              editBuilder.insert(insertPosition, text);
+              editBuilder.insert(insertPosition, delta);
             });
-            // Update insertPosition after each insert
             insertPosition = editor.selection.active;
           }
         } catch (e) {
-          console.error('Error parsing stream line:', line);
+          console.error('Failed to parse chunk:', payload);
         }
       }
     }
