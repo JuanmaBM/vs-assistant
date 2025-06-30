@@ -86,45 +86,51 @@ async function callLLM(
     }
 
     const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let insertPosition = selection.start;
-    let fullResponse = '';
-
-    if (replaceSelection) {
-      await editor.edit(editBuilder => {
-        editBuilder.delete(selection);
-      });
-    }
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-
-      for (const line of chunk.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-
-        const payload = trimmed.replace(/^data:\s*/, '');
-        if (payload === '[DONE]') break;
-
-        try {
-          const parsed = JSON.parse(payload);
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) {
-            fullResponse += delta;
-            await editor.edit(editBuilder => {
-              editBuilder.insert(insertPosition, delta);
-            });
-            insertPosition = editor.selection.active;
-          }
-        } catch (e) {
-          console.error('Failed to parse chunk:', payload);
-        }
-      }
-    }
+    await streamingResponse(reader, selection, editor, replaceSelection);
   } catch (err) {
     vscode.window.showErrorMessage('Streaming error: ' + err);
   }
 }
+
+async function streamingResponse(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  selection: vscode.Selection,
+  editor: vscode.TextEditor,
+  replaceSelection: boolean
+) {
+  const decoder = new TextDecoder();
+  let insertPosition = selection.start;
+  let fullResponse = '';
+
+  if (replaceSelection) {
+    await editor.edit(editBuilder => editBuilder.delete(selection));
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+
+    for (const line of chunk.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+
+      // remove "data:"
+      const json = trimmed.slice(5).trim();
+      if (json === '[DONE]') return;
+
+      try {
+        const delta = JSON.parse(json)?.choices?.[0]?.delta?.content;
+        if (!delta) continue;
+
+        fullResponse += delta;
+        await editor.edit(editBuilder => editBuilder.insert(insertPosition, delta));
+        insertPosition = editor.selection.active;
+      } catch (err) {
+        console.error('Failed to parse chunk:', json);
+      }
+    }
+  }
+}
+
