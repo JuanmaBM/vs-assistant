@@ -14,46 +14,43 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function generateCode() {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      vscode.window.showErrorMessage("No active editor.");
-      return;
-    }
-
-    const selection = editor.selection;
-
-    const prompt = await vscode.window.showInputBox({
-      prompt: 'What code should I generate?',
-    });
-
-    if (!prompt) return;
-
-    await callLLM(prompt, editor, selection);
+  await runLLMWithPrompt({
+    replace: false,
+    promptMessage: 'What code should I generate?',
+    buildPrompt: (input) => input
+  });
 }
 
 async function modifyCode() {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      vscode.window.showErrorMessage("No active editor.");
-      return;
-    }
-
-    const selection = editor.selection;
-    const selectedText = editor.document.getText(selection);
-
-    const prompt = await vscode.window.showInputBox({
-      prompt: 'What should I mofidy?',
-    });
-
-    if (!prompt) return;
-
-    const fullPrompt = `
-      Code to modify: ${selectedText}
-      Request: ${prompt}`;
-
-
-    await callLLM(fullPrompt, editor, selection, true);
+  await runLLMWithPrompt({
+    replace: true,
+    promptMessage: 'What should I modify?',
+    buildPrompt: (input, selectedText) =>
+      `Code to modify: ${selectedText}\nRequest: ${input}`
+  });
 }
+
+async function runLLMWithPrompt(options: {
+  replace: boolean;
+  promptMessage: string;
+  buildPrompt: (input: string, selectedText: string) => string;
+}) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage("No active editor.");
+    return;
+  }
+
+  const selection = editor.selection;
+  const selectedText = editor.document.getText(selection);
+
+  const userInput = await vscode.window.showInputBox({ prompt: options.promptMessage });
+  if (!userInput) return;
+
+  const prompt = options.buildPrompt(userInput, selectedText);
+  await callLLM(prompt, editor, selection, options.replace);
+}
+
 
 async function callLLM(
   prompt: string,
@@ -76,7 +73,7 @@ async function callLLM(
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: systemPrompt},
+          { role: "system", content: systemPrompt },
           { role: "user", content: prompt }
         ],
         stream: true
